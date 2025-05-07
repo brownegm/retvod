@@ -21,9 +21,9 @@ mironov <- function(f, smv, cf) {
     stop("mironov: Check input---Data falls outside of acceptable range.")
   }
   # Constants
-  eps_0 <- 8.854 * 10^(-12)
-  eps_winf <- 4.9
-  fHz <- f
+  eps_0 <- 8.854 * 10^(-12) # static dielectric constant of water
+  eps_winf <- 4.9 # high frequency limit of dielectric constant of water
+  fHz <- f # frequency in hertz
 
   # Initializing the GRMDM spectroscopic parameters with clay fraction
   # RI & NAC of dry soils
