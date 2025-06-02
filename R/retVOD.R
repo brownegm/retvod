@@ -66,7 +66,7 @@ retVOD <- function(tbH, tbV,
       reflec = reflecs[i], tbH = tbH[i], tbV = tbV[i],
       gamma = gamma,# vod = vod,
       Tair = Tair[i], Tsoil = Tsoil[i],
-      omega = o[i], mat = T
+      omega = o[i], mat = F
     )
 
     smidx<-which(sapply(reflecs[i], function(x) x$fH == est$reflec_best$fH && x$fV == est$reflec_best$fV))
