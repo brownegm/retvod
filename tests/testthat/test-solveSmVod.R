@@ -10,7 +10,8 @@ test_that("Correct VOD values chosen", {
   h <- 0.16
   tbH <- 280
   tbV <- 285
-
+  sm <- sm[1]
+  omega_range <- seq(0.01, 0.09, by = 0.01)
   ## calculate gamma for each VOD test value
   gamma <- exp(-vod_test / cos(inc_angle * (pi / 180)))
 
@@ -23,8 +24,8 @@ test_that("Correct VOD values chosen", {
     reflec = reflecs, gamma = gamma,
     tbH = tbH, tbV = tbV,
     Tair = air, Tsoil = soil,
-    omega = omega,
-    mat = T
+    omega = omega_range,
+    mat = T, tno = T
   )
 
   # check that the correct values are chosen
@@ -95,3 +96,4 @@ test_that("Same values backward and forward", {
   )
   expect_identical(sol2forward[-c(1, 9)], sol2_back[-c(1, 9)])
 })
+
