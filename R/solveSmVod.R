@@ -103,7 +103,7 @@ solveSmVod <- function(reflec,
 
   min_index <- which(results[, , "cf_total"] == min(results[, , "cf_total"],
                                                     na.rm = TRUE), arr.ind = TRUE)
-browser()
+#browser()
   if(num_r==1){
     best_row <- 1
     best_col <- min_index
