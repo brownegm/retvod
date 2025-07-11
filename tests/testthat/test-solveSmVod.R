@@ -10,7 +10,7 @@ test_that("Correct VOD values chosen", {
   h <- 0.16
   tbH <- 280
   tbV <- 285
-  #sm <- sm[1]
+  sm <- sm[1]
   omega_range <- seq(0.01, 0.09, by = 0.01)
   ## calculate gamma for each VOD test value
   gamma <- exp(-vod_test / cos(inc_angle * (pi / 180)))
@@ -99,4 +99,63 @@ test_that("Same values backward and forward", {
 
   expect_identical(sol2forward[-c(1:2, 11)], sol2_back[-c(1:2, 11)])
 })
+
+
+test_that("DUAL OMEGA/TAU retreival Same values backward and forward", {
+  v <- c(
+    268.4722473, 268.003972, 267.1787049,
+    266.446253, 266.4795018, 266.1335705,
+    265.6720042
+  )
+  h <- c(
+    258.957763, 258.4377463, 257.8380787,
+    257.2369798, 257.1168902, 256.7121893,
+    256.5970527
+  )
+
+  air <- c(
+    291.32, 291.3, 290.2,
+    289.24, 288.76, 288.12,
+    287.88
+  )
+
+  soil <- air * 0.90
+
+  set.seed(2)
+  sm <- retvod:::gen_sin(1000, rangeL = 0.2, rangeH = 0.35) |> sample(size = 7)
+  vod <- sm * 2
+  inc_angle <- 40
+  clay_frac <- 0.3
+  ## calculate gamma for each VOD test value
+  gamma <- exp(-vod / cos(inc_angle * (pi / 180)))
+
+  ## calculate epsilon (dielectric) and reflectivitys for each value of soil moisture
+  eps_list <- sapply(sm, \(s) mironov(1.4e9, s, clay_frac)$dielectric)
+  reflecs <- sapply(eps_list, \(e) fresnelr(eps = e, theta = inc_angle, h = 0.1), simplify = F)
+
+  omega_range <- seq(0.01, 0.09, by = 0.01)
+  sol2forward <- solveSmVod(
+    reflec = reflecs[4], gamma = gamma, tbH = h[4], tbV = v[4],
+    Tair = air[4], Tsoil = soil[4],
+    omega = omega_range,
+    mat = T, tno = T
+  )
+
+  expect_equal(min(sol2forward$cf_mat$cf_total), sol2forward$cf_tb)
+  expect_equal(sol2forward$reflec_best, reflecs[[4]])
+
+  solved_gamma <- sol2forward$gamma_best
+  input_sm <- sm[4]
+  input_reflec <- reflecs[[4]]
+
+  sol2_back <- solveSmVod(
+    reflec = reflecs, gamma = solved_gamma, tbH = h[4], tbV = v[4],
+    Tair = air[4], Tsoil = soil[4],
+    omega = omega_range,
+    mat = T, tno = T
+  )
+
+  expect_identical(sol2forward[-c(1:2, 11)], sol2_back[-c(1:2, 11)])
+})
+
 
