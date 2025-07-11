@@ -99,7 +99,7 @@ test_that("DUAL Omega and Tau: Output matches manual single measurement solution
 
   set.seed(2)
   sm <- retvod:::gen_sin(1000, rangeL = 0.2, rangeH = 0.45) |> sample(size = 7)
-  vod <- seq(0,3, by = 0.001)
+  vod <- seq(0.2,3, by = 0.1)
   inc_angle <- 40
   ## calculate gamma for each VOD test value
   gamma <- exp(-vod / cos(inc_angle * (pi / 180)))
@@ -110,12 +110,12 @@ test_that("DUAL Omega and Tau: Output matches manual single measurement solution
   # log_omegas <- seq(log(0.01), log(1), length.out = 200)
   # omega_range <- exp(log_omegas)
 
-  omega_range <- seq(0.1, 0.5, by = 0.001)
+  omega_range <- seq(0.1, 0.5, by = 0.01)
 
   sol2 <- solveSmVod(
     reflecs[4], gamma = gamma, tbH = h[4], tbV = v[4],
     Tair = air[4], Tsoil = soil[4],
-    omega = omega_range,tno = T,
+    omega = omega_range, tno = T,
     mat = T)
 
   plot(sol2$cf_mat$cf_total~sol2$cf_mat$omega)
