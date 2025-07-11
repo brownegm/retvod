@@ -107,14 +107,18 @@ test_that("DUAL Omega and Tau: Output matches manual single measurement solution
   ## calculate epsilon (dielectric) and reflectivitys for each value of soil moisture
   eps_list <- sapply(sm, \(s) mironov(1.4e9, s, clay_frac)$dielectric)
   reflecs <- sapply(eps_list, \(e) fresnelr(eps = e, theta = inc_angle, h = 0.1), simplify = F)
+  # log_omegas <- seq(log(0.01), log(1), length.out = 200)
+  # omega_range <- exp(log_omegas)
 
-  omega_range <- seq(0, 1, by = 0.1)
+  omega_range <- seq(0.1, 0.5, by = 0.001)
 
   sol2 <- solveSmVod(
     reflecs[4], gamma = gamma, tbH = h[4], tbV = v[4],
     Tair = air[4], Tsoil = soil[4],
-    omega = omega_range,
+    omega = omega_range,tno = T,
     mat = T)
+
+  plot(sol2$cf_mat$cf_total~sol2$cf_mat$omega)
 
   retrieval <- retVOD(h,v,
                       smc = sm, vod = vod,
