@@ -10,6 +10,7 @@
 #' @param roughness Soil roughness estimate
 #' @param inc_angle Incidence angle
 #' @param cf Clay fraction
+#' @param tno If TRUE, perform retrieval of tau and omega simultaneously. Default is FALSE.
 #' @param silent Silence progress bars in the console. Default is FALSE.
 #'
 #' @return Retrieved VOD and auxillary information
@@ -25,7 +26,7 @@ retVOD <- function(tbH, tbV,
                    omega,
                    roughness,
                    cf,
-                   inc_angle, silent = F) {
+                   inc_angle, tno = F, silent = F) {
   if (length(tbH) != length(tbV) || length(tbH) != length(smc)) {
     stop("tbH, tbV, and smc lengths differ.")
   }
@@ -38,7 +39,7 @@ retVOD <- function(tbH, tbV,
   reflecs <- sapply(eps_list, \(e) fresnelr(eps = e, theta = inc_angle, h=roughness), simplify = F)
 
   ## prepare omega vector (if only one value, repeat for each tbH)
-  o <- if (length(omega) == 1) rep_len(omega, length(tbH)) else omega
+  #o <- if (length(omega) == 1) rep_len(omega, length(tbH)) else omega
 
   ## initialize lists for the results
   results <- vector("list", length(tbH))
@@ -53,7 +54,9 @@ retVOD <- function(tbH, tbV,
   results <- list(
     vodEst = numeric(n), cfEst = numeric(n), smEst = numeric(n),
     tbHpred = numeric(n), tbVpred = numeric(n),
-    tbHcost = numeric(n), tbVcost = numeric(n), res_mat= numeric(n)
+    tbHcost = numeric(n), tbVcost = numeric(n),
+    gamma = numeric(n), omega = numeric(n),
+    rH = numeric(n), rV = numeric(n)
   )
 
   # for each brightness temperature retrieve VOD and soil moisture
@@ -64,13 +67,12 @@ retVOD <- function(tbH, tbV,
   for (i in seq_along(tbH)) {
     est <- solveSmVod(
       reflec = reflecs[i], tbH = tbH[i], tbV = tbV[i],
-      gamma = gamma,# vod = vod,
+      gamma = gamma,
       Tair = Tair[i], Tsoil = Tsoil[i],
-      omega = o[i], mat = F
+      omega = omega, mat = F
     )
 
     smidx<-which(sapply(reflecs[i], function(x) x$fH == est$reflec_best$fH && x$fV == est$reflec_best$fV))
-
 
     # return elements from retrieval
     results$vodEst[i] <- vod[which(gamma==est$gamma_best)]
@@ -80,16 +82,19 @@ retVOD <- function(tbH, tbV,
     results$tbHpred[i] <- est$pred_tbH
     results$tbHcost[i] <- est$cf_tbH
     results$tbVcost[i] <- est$cf_tbV
-    results$res_mat[i] <- est$cf_mat
+    results$gamma[i] <- est$gamma_best
+    results$omega[i] <- est$omega_best
+    #results$res_mat[i] <- est$cf_mat
 
     if (!silent) {
       cli_progress_update() # Update progress bar
     }
   }
 
-  results$rmse_k <- mean(sqrt(results$cfEst), na.rm = T)
-  results$reflectivity <- reflecs
-  results$gamma <- gamma
+  rmse_k <- mean(sqrt(results$cfEst), na.rm = T)
+  results$rH <- sapply(seq_along(reflecs), function(i) reflecs[[i]]$fH)
+  results$rV <- sapply(seq_along(reflecs), function(i) reflecs[[i]]$fV)
+  #results$gamma <- gamma
 
   if (!silent) {
     cli_progress_done() # Complete progress bar
@@ -100,9 +105,11 @@ retVOD <- function(tbH, tbV,
     warning("'Estimated' soil moisture values do not match input.")
   }
 
-  return(structure(results,
+  return(structure(results |>  as.data.frame(x = _, stringsAsFactors = FALSE),
     creation_time = Sys.time(),
+    rmse = rmse_k,
     inputs = list(h = tbH, v = tbV, sm = smc, Tair = Tair, Tsoil=Tsoil, omega = omega, rough = roughness, angle = inc_angle),
+    reflectivity = reflecs,
     class = c( "retVOD","data.frame")
   ))
 }
@@ -185,4 +192,20 @@ plot.retVOD <- function(x, ...) {
        ylab = "Total Tb Residuals",
        xlab = "Soil Temperature")
 
+}
+
+
+#' Print retVOD object
+#'
+#' @param x Object of class `retVOD`
+#' @param ... Not used.
+#'
+#' @returns Printed retrieval results
+#' @export
+
+print.retVOD <- function(x, ...) {
+  ct <- attr(x, "creation_time")
+  ct_str <- if (inherits(ct, "POSIXt")) format(ct) else as.character(ct)
+  cat("retVOD object : created at", ct_str, "\n")
+  NextMethod()  # then print as data.frame
 }

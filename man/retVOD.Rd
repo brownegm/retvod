@@ -15,6 +15,7 @@ retVOD(
   roughness,
   cf,
   inc_angle,
+  tno = F,
   silent = F
 )
 }
@@ -38,6 +39,8 @@ retVOD(
 \item{cf}{Clay fraction}
 
 \item{inc_angle}{Incidence angle}
+
+\item{tno}{If TRUE, perform retrieval of tau and omega simultaneously. Default is FALSE.}
 
 \item{silent}{Silence progress bars in the console. Default is FALSE.}
 }
