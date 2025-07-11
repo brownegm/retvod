@@ -23,112 +23,97 @@ solveSmVod <- function(reflec,
                        omega, mat=F, tno = F) {
 
   ## initialize output matrices
-  num_r <- length(reflec) # number of dielectric values
-  num_gamma <- length(gamma) # number of test VOD values
-  num_omega <- length(omega) # number of omega values
-  print(num_r)
-  # array to hold residuals and predictions for each epsilon and gamma
-  results_dim <- if (tno) {
-    c(num_omega, num_gamma, 6)
-  } else {
-    c(num_r, num_gamma, 6)
-}
-
-  results <- array(NA,
-    dim = results_dim, # rows, columns, calc values
-    dimnames = list(seq(1,results_dim[1]),
-                    seq(1,num_gamma),
-                    c("pred_tbH", "pred_tbV", "cf_total", "cf_tbH", "cf_tbV", "omega"))
+  grid <- expand.grid(
+    refl = seq_along(reflec),
+    gamma = gamma,
+    omega = if (tno) omega else omega[1L],
+    KEEP.OUT.ATTRS   = FALSE,
+    stringsAsFactors = FALSE
   )
 
-  ## Compute cost function for all combinations of epsilon and VOD
-  ## Q: What combo of smc and vod would the reflecs represent?
-  ## For each eps(dielectric) and potential g(gamma,vod), calculate brightness temperatures
-  ## and report the cost function (diff between calculated and obs Tbs)
-  ## Doing a single variable retrieval right so one smc
-  # if you want to do a retrieval with VOD and omega varying simulaneously
-  if (tno) {
-  for(e in seq_len(num_r)) { # loop through each reflec
-    for (o in seq_len(num_omega)) {
-      for (g in seq_len(num_gamma)) {
-        omega <- omega[o] # get current omega value
-        print(omega)
-        result <- estTb(
-          tbH = tbH,
-          tbV = tbV,
-          fH = reflec[[e]]$fH,
-          fV = reflec[[e]]$fV,
-          gamma = gamma[g],
-          Tair = Tair,
-          Tsoil = Tsoil,
-          omega = omega
-        )
-        # store results
-        results[o, g, ] <- c(
-          result$pred_tbH,
-          result$pred_tbV,
-          result$residuals$totaltb,
-          result$residuals$tbH,
-          result$residuals$tbV,
-          omega
-        )
-      }
-    }
-}
-    } else { #traditional non varying omega
-
-      for (e in seq_len(num_r)) {
-        for (g in seq_len(num_gamma)) {
-          result <- estTb(
-            tbH = tbH,
-            tbV = tbV,
-            fH = reflec[[e]]$fH,
-            fV = reflec[[e]]$fV,
-            gamma = gamma[g],
-            Tair = Tair,
-            Tsoil = Tsoil,
-            omega = omega
-          )
-          # store results
-          results[e, g, ] <- c(
-            result$pred_tbH,
-            result$pred_tbV,
-            result$residuals$totaltb,
-            result$residuals$tbH,
-            result$residuals$tbV
-          )
-        }
-      }
-    }
-
-  min_index <- which(results[, , "cf_total"] == min(results[, , "cf_total"],
-                                                    na.rm = TRUE), arr.ind = TRUE)
-#browser()
-  if(num_r==1){
-    best_row <- 1
-    best_col <- min_index
-  }else if (num_gamma==1){
-    best_row <- min_index
-    best_col <- 1
-  }else{
-    best_row <- min_index[1]
-    best_col <- min_index[2]
+  # extract residuals metrics from Tb estimates
+  get_metrics <- function(refl_idx, g, o) {
+    res <- retvod::estTb(
+      tbH   = tbH,
+      tbV   = tbV,
+      fH    = reflec[[refl_idx]]$fH,
+      fV    = reflec[[refl_idx]]$fV,
+      gamma = g,
+      Tair  = Tair,
+      Tsoil = Tsoil,
+      omega = o
+    )
+   out <- c(
+      pred_tbH = res$pred_tbH,
+      pred_tbV = res$pred_tbV,
+      cf_total = res$residuals$totaltb,
+      cf_tbH   = res$residuals$tbH,
+      cf_tbV   = res$residuals$tbV
+    )
+    return(out)
   }
 
-  output <- list(
-    min_cf_index = c(best_row, best_col)|>unname(),
-    cf_tb = results[best_row, best_col, "cf_total"]|>unname(),
-    #epsilon = eps_list[best_row],
-    pred_tbH = results[best_row, best_col, "pred_tbH"]|>unname(),
-    pred_tbV = results[best_row, best_col, "pred_tbV"]|>unname(),
-    cf_tbH = results[best_row, best_col, "cf_tbH"]|>unname(),
-    cf_tbV = results[best_row, best_col, "cf_tbV"]|>unname(),
-    reflec_best = reflec[[best_row]],
-    gamma_best = gamma[best_col],
-    cf_mat = if (mat == T) results[, , "cf_total"] else NA,
-    omega = if (tno) results[best_row, best_col, "omega"] else NA
+  # 3) Compute metrics for every row of param_grid
+  metrics_mat <- t( mapply(
+    FUN      = get_metrics,
+    refl_idx = grid$refl,
+    g        = grid$gamma,
+    o        = grid$omega,
+    SIMPLIFY = TRUE
+  ) )
+
+  # 4) Combine into one results data.frame
+  results_df <- cbind(grid, as.data.frame(metrics_mat))
+
+  # 5) Identify the best (lowest cf_total)
+  best_row <- results_df[ which.min(results_df$cf_total), ]
+
+  # 6) Package outputs to mirror your original list structure
+  out <- list(
+    best = best_row,
+    min_cf_index = c(best_row$refl, best_row$gamma, best_row$omega),
+    cf_tb        = best_row$cf_total,
+    pred_tbH     = best_row$pred_tbH,
+    pred_tbV     = best_row$pred_tbV,
+    cf_tbH       = best_row$cf_tbH,
+    cf_tbV       = best_row$cf_tbV,
+    reflec_best  = reflec[[best_row$refl]],
+    gamma_best   = best_row$gamma,
+    omega_best   = best_row$omega
   )
-  return(structure(output,
-                   flag = if (length(best_row)>1) "Tie for lowest residuals found")
-  )
+
+  # attach full cost grid if requested
+  if (mat) {
+    out$cf_mat <- results_df
+  }
+
+  return(out)
 }
+
+
+#' # Helper for the getting residuals
+#'
+#' #' Get residuals in grid across a range of gamma and omega.
+#' #'
+#' #' @param reflec reflectivities
+#' #' @param g gamma range
+#' #' @param o omega range
+#' #'
+#' #' @returns A matrix of residuals for each gamma and omega combination.
+#' #' @export
+#'
+#' get_residuals <- function(reflec, g, o) {
+#'
+#'   out <- retvod::estTb(
+#'     tbH = tbH,
+#'     tbV = tbV,
+#'     fH = reflec[[1]]$fH,
+#'     fV = reflec[[1]]$fV,
+#'     gamma = g,
+#'     Tair = Tair,
+#'     Tsoil = Tsoil,
+#'     omega = o
+#'   )$residuals$totaltb
+#'
+#'   return(out)
+#' }

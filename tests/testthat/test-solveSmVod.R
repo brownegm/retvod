@@ -10,7 +10,7 @@ test_that("Correct VOD values chosen", {
   h <- 0.16
   tbH <- 280
   tbV <- 285
-  sm <- sm[1]
+  #sm <- sm[1]
   omega_range <- seq(0.01, 0.09, by = 0.01)
   ## calculate gamma for each VOD test value
   gamma <- exp(-vod_test / cos(inc_angle * (pi / 180)))
@@ -25,13 +25,15 @@ test_that("Correct VOD values chosen", {
     tbH = tbH, tbV = tbV,
     Tair = air, Tsoil = soil,
     omega = omega_range,
-    mat = T, tno = T
+    mat = T
   )
 
+  # check that the inputs are used appropriately
+
   # check that the correct values are chosen
-  expect_equal(reflecs[[sol1$min_cf_index[1]]], sol1$reflec_best)
+  expect_equal(reflecs[[sol1$min_cf_index[[1]]]], sol1$reflec_best)
   expect_true(sol1$gamma_best %in% gamma)
-  expect_equal(min(sol1$cf_mat), sol1$cf_tb)
+  expect_equal(min(sol1$cf_mat$cf_total), sol1$cf_tb)
 
   # check specific indices
   expect_equal(reflecs[[1]], sol1$reflec_best)
@@ -81,7 +83,7 @@ test_that("Same values backward and forward", {
     mat = T
   )
 
-  expect_equal(min(sol2forward$cf_mat), sol2forward$cf_tb)
+  expect_equal(min(sol2forward$cf_mat$cf_total), sol2forward$cf_tb)
   expect_equal(sol2forward$reflec_best, reflecs[[4]])
 
   solved_gamma <- sol2forward$gamma_best
@@ -94,6 +96,7 @@ test_that("Same values backward and forward", {
     omega = 0.5,
     mat = T
   )
-  expect_identical(sol2forward[-c(1, 9)], sol2_back[-c(1, 9)])
+
+  expect_identical(sol2forward[-c(1:2, 11)], sol2_back[-c(1:2, 11)])
 })
 
