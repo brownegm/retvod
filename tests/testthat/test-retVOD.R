@@ -116,7 +116,7 @@ test_that("DUAL Omega and Tau: Output matches manual single measurement solution
   # log_omegas <- seq(log(0.01), log(1), length.out = 200)
   # omega_range <- exp(log_omegas)
 
-  omega_range <- seq(0.1, 0.5, by = 0.01)
+  omega_range <- seq(0.01, 0.1, by = 0.001)
 
   sol2 <- solveSmVod(
     reflecs[4], gamma = gamma, tbH = h[4], tbV = v[4],
