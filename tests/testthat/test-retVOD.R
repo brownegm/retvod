@@ -10,30 +10,31 @@ test_that("Check errors", {
     "tbH, tbV, and smc lengths differ."
   )
 })
-
+# results$vodEst[i] <- vod[which(gamma == est$gamma_best)] : :  8m
+# replacement has length zero
 test_that("Output matches manual single measurement solution", {
   v <- c(
     268.4722473, 268.003972, 267.1787049,
-    266.446253, 266.4795018, 266.1335705,
+    266.446253, 266.4795018, 266.1335705,NA,
     265.6720042
   )
   h <- c(
     258.957763, 258.4377463, 257.8380787,
-    257.2369798, 257.1168902, 256.7121893,
+    257.2369798, 257.1168902, 256.7121893,2,
     256.5970527
   )
 
   air <- c(
     291.32, 291.3, 290.2,
-    289.24, 288.76, 288.12,
+    289.24, 288.76, 288.12,0,
     287.88
   )
 
   soil <- air * 0.90
 
   set.seed(2)
-  sm <- retvod:::gen_sin(1000, rangeL = 0.2, rangeH = 0.45) |> sample(size = 7)
-  vod <- seq(0,2, length.out = 7)
+  sm <- retvod:::gen_sin(1000, rangeL = 0.2, rangeH = 0.45) |> sample(size = 8)
+  vod <- seq(0,2, length.out = 8)
   inc_angle <- 40
   ## calculate gamma for each VOD test value
   gamma <- exp(-vod / cos(inc_angle * (pi / 180)))
@@ -48,7 +49,12 @@ test_that("Output matches manual single measurement solution", {
     omega = 0.05, #clay_frac = 0.232,
     mat = T
   )
-
+  # sol2s <- solveSmVod(
+  #   reflecs[7], gamma = gamma, tbH = h[7], tbV = v[7],
+  #   Tair = air[7], Tsoil = soil[7],
+  #   omega = 0.05, #clay_frac = 0.232,
+  #   mat = T
+  # )
   retrieval <- retVOD(h,v,
                       smc = sm, vod = vod,
                       Tair = air, Tsoil = soil, cf = 0.232,

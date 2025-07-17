@@ -65,10 +65,26 @@ solveSmVod <- function(reflec,
   # 4) Combine into one results data.frame
   results_df <- cbind(grid, as.data.frame(metrics_mat))
 
+  if(length(which.min(results_df$cf_total))==0) {
+    warning("No minimum cost function found; NAs returned. Check input parameters.")
+    return(list(
+      best = NA,
+      min_cf_index = NA,
+      cf_tb = NA,
+      pred_tbH = NA,
+      pred_tbV = NA,
+      cf_tbH = NA,
+      cf_tbV = NA,
+      reflec_best = NA,
+      gamma_best = NA,
+      omega_best = NA,
+      cf_mat = NULL
+    ))
+  }
   # 5) Identify the best (lowest cf_total)
-  best_row <- results_df[ which.min(results_df$cf_total), ]
+  best_row <- results_df[which.min(results_df$cf_total), ]
 
-  # 6) Package outputs to mirror your original list structure
+  # 6) Package outputs
   out <- list(
     best = best_row,
     min_cf_index = c(best_row$refl, best_row$gamma, best_row$omega),
@@ -77,7 +93,7 @@ solveSmVod <- function(reflec,
     pred_tbV     = best_row$pred_tbV,
     cf_tbH       = best_row$cf_tbH,
     cf_tbV       = best_row$cf_tbV,
-    reflec_best  = reflec[[best_row$refl]],
+    reflec_best  = if(!nrow(best_row)==0) reflec[[best_row$refl]],
     gamma_best   = best_row$gamma,
     omega_best   = best_row$omega
   )

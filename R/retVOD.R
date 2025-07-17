@@ -18,7 +18,9 @@
 #'
 #' @import cli
 
-retVOD <- function(tbH, tbV,
+
+retVOD <- function(tbH,
+                   tbV,
                    smc,
                    vod,
                    Tair,
@@ -26,37 +28,42 @@ retVOD <- function(tbH, tbV,
                    omega,
                    roughness,
                    cf,
-                   inc_angle, tno = F, silent = F) {
+                   inc_angle,
+                   tno = F,
+                   silent = F) {
   if (length(tbH) != length(tbV) || length(tbH) != length(smc)) {
     stop("tbH, tbV, and smc lengths differ.")
   }
 
   ## calculate gamma for each VOD test value
-  gamma <- exp(-vod / cos(inc_angle* (pi/180)))
+  gamma <- exp(-vod / cos(inc_angle * (pi / 180)))
 
   ## calculate epsilon (dielectric) and reflectivitys for each value of soil moisture
   eps_list <- sapply(smc, \(s) mironov(1.4e9, s, cf)$dielectric)
-  reflecs <- sapply(eps_list, \(e) fresnelr(eps = e, theta = inc_angle, h=roughness), simplify = F)
+  reflecs <- sapply(eps_list,
+                    \(e) fresnelr(eps = e, theta = inc_angle, h = roughness),
+                    simplify = F)
 
   ## prepare omega vector (if only one value, repeat for each tbH)
   #o <- if (length(omega) == 1) rep_len(omega, length(tbH)) else omega
 
   ## initialize lists for the results
   results <- vector("list", length(tbH))
-  # names(results) <- c(
-  #   "vodEst", "cfEst", "smEst",
-  #   "tbHpred", "tbVpred",
-  #   "tbHcost", "tbVcost", "res_mat"
-  # )
 
   n <- length(tbH)
 
   results <- list(
-    vodEst = numeric(n), cfEst = numeric(n), smEst = numeric(n),
-    tbHpred = numeric(n), tbVpred = numeric(n),
-    tbHcost = numeric(n), tbVcost = numeric(n),
-    gamma = numeric(n), omega = numeric(n),
-    rH = numeric(n), rV = numeric(n)
+    vodEst = numeric(n),
+    cfEst = numeric(n),
+    smEst = numeric(n),
+    tbHpred = numeric(n),
+    tbVpred = numeric(n),
+    tbHcost = numeric(n),
+    tbVcost = numeric(n),
+    gamma = numeric(n),
+    omega = numeric(n),
+    rH = numeric(n),
+    rV = numeric(n)
   )
 
   # for each brightness temperature retrieve VOD and soil moisture
@@ -65,17 +72,44 @@ retVOD <- function(tbH, tbV,
   }
 
   for (i in seq_along(tbH)) {
-    est <- solveSmVod(
-      reflec = reflecs[i], tbH = tbH[i], tbV = tbV[i],
-      gamma = gamma,
-      Tair = Tair[i], Tsoil = Tsoil[i],
-      omega = omega, mat = F
-    )
+    est <- tryCatch(
+      {
+        solveSmVod(
+          reflec = reflecs[i],
+          tbH = tbH[i],
+          tbV = tbV[i],
+          gamma = gamma,
+          Tair = Tair[i],
+          Tsoil = Tsoil[i],
+          omega = omega,
+          mat = F)
+      },
+      warning = function(w) {
+        message("Warning: solveSmVod at index ", i, "--", conditionMessage(w))
+        return(
+          solveSmVod(
+          reflec = reflecs[i],
+          tbH = tbH[i],
+          tbV = tbV[i],
+          gamma = gamma,
+          Tair = Tair[i],
+          Tsoil = Tsoil[i],
+          omega = omega,
+          mat = F))# return the NA-filled result even on warning
+      })
 
-    smidx<-which(sapply(reflecs[i], function(x) x$fH == est$reflec_best$fH && x$fV == est$reflec_best$fV))
+
+    #at index i, No minimum cost function found; NAs returned. Check input parameters.
+    # smidx <- which(sapply(reflecs[i], function(x) x$fH == est$reflec_best$fH && x$fV == est$reflec_best$fV))
+    # print(smidx)
+    #print(vod[which(gamma == est$gamma_best)])
+    # Find gamma index safely
+    gamma_idx <- match(est$gamma_best, gamma)
+
+    vod_select <- vod[gamma_idx]
 
     # return elements from retrieval
-    results$vodEst[i] <- vod[which(gamma==est$gamma_best)]
+    results$vodEst[i] <- vod_select
     results$cfEst[i] <- est$cf_tb
     results$smEst[i] <- smc[i]#[smidx]
     results$tbVpred[i] <- est$pred_tbV
@@ -92,8 +126,10 @@ retVOD <- function(tbH, tbV,
   }
 
   rmse_k <- mean(sqrt(results$cfEst), na.rm = T)
-  results$rH <- sapply(seq_along(reflecs), function(i) reflecs[[i]]$fH)
-  results$rV <- sapply(seq_along(reflecs), function(i) reflecs[[i]]$fV)
+  results$rH <- sapply(seq_along(reflecs), function(i)
+    reflecs[[i]]$fH)
+  results$rV <- sapply(seq_along(reflecs), function(i)
+    reflecs[[i]]$fV)
   #results$gamma <- gamma
 
   if (!silent) {
@@ -105,13 +141,25 @@ retVOD <- function(tbH, tbV,
     warning("'Estimated' soil moisture values do not match input.")
   }
 
-  return(structure(results |>  as.data.frame(x = _, stringsAsFactors = FALSE),
-    creation_time = Sys.time(),
-    rmse = rmse_k,
-    inputs = list(h = tbH, v = tbV, sm = smc, Tair = Tair, Tsoil=Tsoil, omega = omega, rough = roughness, angle = inc_angle),
-    reflectivity = reflecs,
-    class = c( "retVOD","data.frame")
-  ))
+  return(
+    structure(
+      results |>  as.data.frame(x = _, stringsAsFactors = FALSE),
+      creation_time = Sys.time(),
+      rmse = rmse_k,
+      inputs = list(
+        h = tbH,
+        v = tbV,
+        sm = smc,
+        Tair = Tair,
+        Tsoil = Tsoil,
+        omega = omega,
+        rough = roughness,
+        angle = inc_angle
+      ),
+      reflectivity = reflecs,
+      class = c("retVOD", "data.frame")
+    )
+  )
 }
 
 
@@ -125,39 +173,37 @@ plot.retVOD <- function(x, ...) {
   par(mfrow = c(3, 4), mar = c(5, 5, 1, 1))
 
   plot(x$vodEst,
-    main = "Retrieved Vegetation Optical Depth",
-    ylab = "VOD",
-    xlab = "Index"
-  )
+       main = "Retrieved Vegetation Optical Depth",
+       ylab = "VOD",
+       xlab = "Index")
 
   plot(x$cfEst,
-    main = "Total Tb Residuals",
-    ylab = "Brightness Temps (K^2)",
-    xlab = "Index"
-  )
+       main = "Total Tb Residuals",
+       ylab = "Brightness Temps (K^2)",
+       xlab = "Index")
 
   hist(x$cfEst, main = "Histogram Tb Residuals", xlab = "Tb Residuals")
 
   plot(x$tbHcost,
-    main = "TbH Residuals (K^2)",
-    ylab = "Brightness Temps (K^2)",
-    xlab = "Index"
-  )
+       main = "TbH Residuals (K^2)",
+       ylab = "Brightness Temps (K^2)",
+       xlab = "Index")
 
   plot(x$tbVcost,
-    main = "TbV Residuals (K^2)",
-    ylab = "Brightness Temps (K^2)",
-    xlab = "Index"
-  )
+       main = "TbV Residuals (K^2)",
+       ylab = "Brightness Temps (K^2)",
+       xlab = "Index")
 
-  plot(x$tbHpred ~ x$tbHcost,
+  plot(
+    x$tbHpred ~ x$tbHcost,
     main = "Predicted TbH ~ TbH Residuals",
     ylab = "Brightness Temps (K)",
     xlab = "Tb H Residuals (K^2)"
   )
   abline(a = 0, b = -1, col = "red")
 
-  plot(x$tbVpred ~ x$tbVcost,
+  plot(
+    x$tbVpred ~ x$tbVcost,
     main = "Predicted TbV ~ TbV Residuals",
     ylab = "Brightness Temps (K)",
     xlab = "Tb V Residuals (K^2)"
@@ -165,16 +211,14 @@ plot.retVOD <- function(x, ...) {
   abline(a = 0, b = -1, col = "red")
 
   plot(inputs$h ~ x$tbHcost,
-    main = "Observed TbH ~ TbH Residuals",
-    ylab = "Brightness Temps (K)",
-    xlab = "Tb H Residuals (K^2)"
-  )
+       main = "Observed TbH ~ TbH Residuals",
+       ylab = "Brightness Temps (K)",
+       xlab = "Tb H Residuals (K^2)")
   abline(a = 0, b = 1, col = "red")
   plot(inputs$v ~ x$tbVcost,
-    main = "Observed TbV ~ TbV Residuals",
-    ylab = "Brightness Temps (K)",
-    xlab = "Tb V Residuals (K^2)"
-  )
+       main = "Observed TbV ~ TbV Residuals",
+       ylab = "Brightness Temps (K)",
+       xlab = "Tb V Residuals (K^2)")
   abline(a = 0, b = 1, col = "red")
 
   plot(x$cfEst ~ inputs$sm,
@@ -182,15 +226,19 @@ plot.retVOD <- function(x, ...) {
        ylab = "Total Tb Residuals",
        xlab = "Soil Moisture")
 
-  plot(x$cfEst ~ inputs$Tair,
-       main = "Total Res. ~ Air Temp",
-       ylab = "Total Tb Residuals",
-       xlab = "Air Temperature")
+  plot(
+    x$cfEst ~ inputs$Tair,
+    main = "Total Res. ~ Air Temp",
+    ylab = "Total Tb Residuals",
+    xlab = "Air Temperature"
+  )
 
-  plot(x$cfEst ~ inputs$Tsoil,
-       main = "Total Res. ~ Soil Temp",
-       ylab = "Total Tb Residuals",
-       xlab = "Soil Temperature")
+  plot(
+    x$cfEst ~ inputs$Tsoil,
+    main = "Total Res. ~ Soil Temp",
+    ylab = "Total Tb Residuals",
+    xlab = "Soil Temperature"
+  )
 
 }
 
@@ -205,7 +253,10 @@ plot.retVOD <- function(x, ...) {
 
 print.retVOD <- function(x, ...) {
   ct <- attr(x, "creation_time")
-  ct_str <- if (inherits(ct, "POSIXt")) format(ct) else as.character(ct)
+  ct_str <- if (inherits(ct, "POSIXt"))
+    format(ct)
+  else
+    as.character(ct)
   cat("retVOD object : created at", ct_str, "\n")
   NextMethod()  # then print as data.frame
 }
